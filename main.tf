@@ -1,6 +1,6 @@
 locals {
-  resource_group_name = ""
-  public_key = ""
+  resource_group_name = "${var.resource-group-name}"
+  public_key = "${var.pub-key}"
   location = "southcentralus"
 }
 
