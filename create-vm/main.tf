@@ -37,7 +37,7 @@ resource "azurerm_app_service" "test" {
 }
 
 resource "azurerm_sql_server" "test" {
-  name                         = "terraform-sql83028"
+  name                         = "terraform-sql8302823423"
   resource_group_name          = "${azurerm_resource_group.test.name}"
   location                     = "${azurerm_resource_group.test.location}"
   version                      = "12.0"
