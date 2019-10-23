@@ -1,93 +1,57 @@
-locals {
-  resource_group_name = "${var.resource-group-name}"
-  public_key = "${var.pub-key}"
-  location = "southcentralus"
+resource "azurerm_resource_group" "test" {
+  name     = "${var.resource-group-name}"
+  location = "${var.location}"
 }
 
-# Create virtual network
-resource "azurerm_virtual_network" "lab_vnet" {
-    name = "labVNET"
-    address_space = ["10.0.0.0/16"]
-    location = "${local.location}"
-    resource_group_name = "${local.resource_group_name}"
+resource "azurerm_app_service_plan" "test" {
+  name                = "example-appserviceplan"
+  location            = "${azurerm_resource_group.test.location}"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+
+  sku {
+    tier = "Standard"
+    size = "S1"
+  }
 }
 
-# Create subnet
-resource "azurerm_subnet" "lab_subnet" {
-    name = "labSUBNET"
-    resource_group_name = "${local.resource_group_name}"
-    virtual_network_name = "${azurerm_virtual_network.lab_vnet.name}"
-    address_prefix = "10.0.1.0/24"
+resource "azurerm_app_service" "test" {
+  name                = "${var.app-service-name}"
+  location            = "${azurerm_resource_group.test.location}"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  app_service_plan_id = "${azurerm_app_service_plan.test.id}"
+
+  site_config {
+    dotnet_framework_version = "v4.0"
+    scm_type                 = "LocalGit"
+  }
+
+  app_settings = {
+    "SOME_KEY" = "some-value"
+  }
+
+  connection_string {
+    name  = "Database"
+    type  = "SQLServer"
+    value = "Server=tcp:${azurerm_sql_server.test.fully_qualified_domain_name} Database=${azurerm_sql_database.test.name};User ID=${azurerm_sql_server.test.administrator_login};Password=${azurerm_sql_server.test.administrator_login_password};Trusted_Connection=False;Encrypt=True;"
+  }
 }
 
-# Create public IPs
-resource "azurerm_public_ip" "lab_pip" {
-    name = "labPIP"
-    location = "${local.location}"
-    resource_group_name = "${local.resource_group_name}"
-    public_ip_address_allocation = "dynamic"
+resource "azurerm_sql_server" "test" {
+  name                         = "terraform-sqlserver"
+  resource_group_name          = "${azurerm_resource_group.test.name}"
+  location                     = "${azurerm_resource_group.test.location}"
+  version                      = "12.0"
+  administrator_login          = "houssem"
+  administrator_login_password = "4-v3ry-53cr37-p455w0rd"
 }
 
-# Create Network Security Group and rule
-resource "azurerm_network_security_group" "lab_nsg" {
-    name = "labNSG"
-    location = "${local.location}"
-    resource_group_name = "${local.resource_group_name}"
-    security_rule {
-        name = "SSH"
-        priority = 1001
-        direction = "Inbound"
-        access = "Allow"
-        protocol = "Tcp"
-        source_port_range = "*"
-        destination_port_range = "22"
-        source_address_prefix = "*"
-        destination_address_prefix = "*"
-    }
-}
+resource "azurerm_sql_database" "test" {
+  name                = "terraform-sqldatabase"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  location            = "${azurerm_resource_group.test.location}"
+  server_name         = "${azurerm_sql_server.test.name}"
 
-# Create network interface
-resource "azurerm_network_interface" "lab_nic" {
-    name = "labNIC"
-    location = "${local.location}"
-    resource_group_name = "${local.resource_group_name}"
-    network_security_group_id = "${azurerm_network_security_group.lab_nsg.id}"
-    ip_configuration {
-        name = "labNicConfiguration"
-        subnet_id = "${azurerm_subnet.lab_subnet.id}"
-        private_ip_address_allocation = "dynamic"
-        public_ip_address_id = "${azurerm_public_ip.lab_pip.id}"
-    }
-}
-
-# Create virtual machine
-resource "azurerm_virtual_machine" "lab_vm" {
-    name = "labVM"
-    location = "${local.location}"
-    resource_group_name = "${local.resource_group_name}"
-    network_interface_ids = ["${azurerm_network_interface.lab_nic.id}"]
-    vm_size = "Standard_B1ms"
-    storage_os_disk {
-        name = "labVMOSDISK"
-        caching = "ReadWrite"
-        create_option = "FromImage"
-        managed_disk_type = "Premium_LRS"
-    }
-    storage_image_reference {
-        publisher = "Canonical"
-        offer = "UbuntuServer"
-        sku = "16.04.0-LTS"
-        version = "latest"
-    }
-    os_profile {
-        computer_name = "labvm"
-        admin_username = "labvmadmin"
-    }
-    os_profile_linux_config {
-        disable_password_authentication = true
-        ssh_keys {
-            path = "/home/labvmadmin/.ssh/authorized_keys"
-            key_data = "${local.public_key}"
-        }
-    }
+  tags = {
+    environment = "production"
+  }
 }
